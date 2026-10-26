@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Local module imports
 from src.data.datamodule import NMRDataModule
+from src.data.paired_spectra import SpectralVariantEpochCallback
 from src.model.model import NMRTo3DStructureElucidation
 from src.utils import (
     rank0_print,  # Utility for printing only from rank 0 process in distributed training
@@ -84,6 +85,9 @@ def main(cfg: DictConfig):
     
     # Set up callbacks for model checkpointing and logging
     callbacks = []
+    if (general_cfg.mode == "train" and
+            dataset_args.get("spectral_variant_mode", "legacy_random") == "paired_cyclic"):
+        callbacks.append(SpectralVariantEpochCallback())
     if general_cfg.save_checkpoint:
         # Callback to save checkpoints based on matching accuracy
         matching_accuracy_ckpt_callback = ModelCheckpoint(
@@ -148,7 +152,10 @@ def main(cfg: DictConfig):
     # Execute training or testing based on specified mode
     if general_cfg.mode == "train":
         trainer.fit(model, datamodule=datamodule, ckpt_path=general_cfg.ckpt_abs_path)
-        trainer.test(model, datamodule=datamodule)  # Run test after training completes
+        if datamodule.test_indices is not None and len(datamodule.test_indices) > 0:
+            trainer.test(model, datamodule=datamodule)
+        else:
+            rank0_print("Skipping internal test: empty test split (external evaluation is separate)")
     elif general_cfg.mode == "test":
         trainer.test(model, datamodule=datamodule, ckpt_path=general_cfg.ckpt_abs_path)
         

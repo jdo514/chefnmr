@@ -1,4 +1,6 @@
 import pathlib
+import copy
+import multiprocessing
 import numpy as np
 from typing import Any, List
 from omegaconf import OmegaConf
@@ -8,6 +10,7 @@ import lightning as pl
 from lightning.pytorch.utilities import rank_zero_only
 from src.data.factory.factory import MoleculeFactory
 from src.data.input_generator import NMRInputGenerator
+from src.data.paired_spectra import resolve_item, select_paired_spectra, MODES
 
 class NMRDataset(Dataset):
     """
@@ -23,7 +26,10 @@ class NMRDataset(Dataset):
                 data_indices: np.ndarray | List[int],
                 input_generator: str,
                 input_generator_addn_args: dict[str, Any],
-                use_all_conformers: bool = False):
+                use_all_conformers: bool = False,
+                spectral_variant_mode: str = "legacy_random",
+                spectral_variant_count: int = 11,
+                spectral_variant_seed: int = 42):
         """
         Initialize the NMRDataset.
         
@@ -36,12 +42,31 @@ class NMRDataset(Dataset):
         """
         self.data_manager = MoleculeFactory(datadir=datadir, mode='r')
         self.data_indices = data_indices
+        if spectral_variant_mode not in MODES:
+            raise ValueError(f"Unknown spectral_variant_mode: {spectral_variant_mode}")
+        if int(spectral_variant_count) < 1:
+            raise ValueError("spectral_variant_count must be positive")
+        if spectral_variant_mode != "legacy_random" and input_generator != "H1C13NMRSpectrum":
+            raise ValueError("Paired variant modes require H1C13NMRSpectrum")
+        self.spectral_variant_mode = spectral_variant_mode
+        self.spectral_variant_count = int(spectral_variant_count)
+        self.spectral_variant_seed = int(spectral_variant_seed)
+        self._spectral_epoch = multiprocessing.Value("i", 0)
         self.use_all_conformers = use_all_conformers
         self.input_generator = NMRInputGenerator(input_generator, input_generator_addn_args=input_generator_addn_args, use_all_conformers=use_all_conformers)
         
     def __len__(self):
         """Return the number of molecules in the dataset."""
-        return len(self.data_indices)
+        n = len(self.data_indices)
+        if self.spectral_variant_mode == "paired_expanded":
+            return n * self.spectral_variant_count
+        return n
+
+    def set_spectral_epoch(self, epoch):
+        if epoch < 0:
+            raise ValueError("epoch must be nonnegative")
+        with self._spectral_epoch.get_lock():
+            self._spectral_epoch.value = int(epoch)
 
     def __getitem__(self, idx):
         """
@@ -57,13 +82,22 @@ class NMRDataset(Dataset):
                 - model_outputs: Dictionary containing target coordinates (single conformer and/or all conformers).
         """
         
+        position, variant = resolve_item(
+            idx, len(self.data_indices), self.spectral_variant_count,
+            self.spectral_variant_mode, epoch=self._spectral_epoch.value,
+            seed=self.spectral_variant_seed,
+        )
         mol_dict = self.data_manager.get_molecule_data_by_idx(
-            mol_idx=self.data_indices[idx],
+            mol_idx=self.data_indices[position],
             include_skeleton_smiles=False,
             include_spectra=True,
             include_atom_features=True,
         )
         
+        if variant is not None:
+            mol_dict = select_paired_spectra(
+                mol_dict, variant, self.spectral_variant_count
+            )
         return self.input_generator.forward(mol_dict)
         
 class NMRDataModule(pl.LightningDataModule):
@@ -189,6 +223,11 @@ class NMRDataModule(pl.LightningDataModule):
             stage: The stage of processing ('fit', 'test')
         """
         if stage == 'fit':
+            mode = self.datacfg.get("spectral_variant_mode", "legacy_random")
+            count = int(self.datacfg.get("spectral_variant_count", 11))
+            seed = int(self.datacfg.get("spectral_variant_seed", 42))
+            if mode != "legacy_random" and not self.datacfg.get("selection_manifest_dir"):
+                raise ValueError("Paired spectral modes require an external selection manifest")
             if self.datacfg.train_args.use_subset:
                 train_rng = np.random.default_rng(self.datacfg.train_args.train_seed)  # Fixed seed for reproducibility
                 num_samples = min(self.datacfg.train_args.train_samples, len(self.train_indices))
@@ -199,9 +238,12 @@ class NMRDataModule(pl.LightningDataModule):
                 input_generator=self.datacfg.input_generator,
                 input_generator_addn_args=self.input_generator_addn_args,
                 use_all_conformers=False,  # Training uses single random conformer
+                spectral_variant_mode=mode,
+                spectral_variant_count=count,
+                spectral_variant_seed=seed,
             )
             
-            val_input_generator_addn_args = self.input_generator_addn_args.copy()
+            val_input_generator_addn_args = copy.deepcopy(self.input_generator_addn_args)
             val_input_generator_addn_args['multitask_args']['p_drop_h1nmr'] = 0.0 # No dropout for validation
             val_input_generator_addn_args['multitask_args']['p_drop_c13nmr'] = 0.0
             val_input_generator_addn_args['multitask_args']['p_drop_both'] = 0.0
@@ -211,6 +253,9 @@ class NMRDataModule(pl.LightningDataModule):
                 input_generator=self.datacfg.input_generator,
                 input_generator_addn_args=val_input_generator_addn_args,
                 use_all_conformers=True,  # Validation uses all conformers for Average Minimum RMSD
+                spectral_variant_mode=("reference" if mode != "legacy_random" else "legacy_random"),
+                spectral_variant_count=count,
+                spectral_variant_seed=seed,
             )
             
             rank_zero_only(print)("### len(train_set):", len(self._train_set))
@@ -228,7 +273,7 @@ class NMRDataModule(pl.LightningDataModule):
                 rng = np.random.default_rng(self.datacfg.test_args.test_seed)  # Fixed seed for reproducibility
                 num_samples = min(self.datacfg.test_args.test_samples, len(self.test_indices))
                 test_indices = rng.choice(self.test_indices, num_samples, replace=False)
-            test_input_generator_addn_args = self.input_generator_addn_args.copy()
+            test_input_generator_addn_args = copy.deepcopy(self.input_generator_addn_args)
             test_input_generator_addn_args['multitask_args']['p_drop_h1nmr'] = self.datacfg.test_args.test_p_drop_h1nmr
             test_input_generator_addn_args['multitask_args']['p_drop_c13nmr'] = self.datacfg.test_args.test_p_drop_c13nmr
             test_input_generator_addn_args['multitask_args']['p_drop_both'] = 0.0 # No dropout for test
@@ -240,6 +285,10 @@ class NMRDataModule(pl.LightningDataModule):
                 use_all_conformers=True,  # Test uses all conformers for Average Minimum RMSD
             )
             rank_zero_only(print)("### len(test_subset):", len(self._test_subset))
+
+    def set_spectral_epoch(self, epoch):
+        if hasattr(self, "_train_set"):
+            self._train_set.set_spectral_epoch(epoch)
 
     def train_dataloader(self):
         return DataLoader(
