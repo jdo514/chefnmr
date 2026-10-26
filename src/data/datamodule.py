@@ -128,6 +128,23 @@ class NMRDataModule(pl.LightningDataModule):
                                                 recompute_sigma_data=recompute_sigma_data, 
                                                  recompute_max_n_atoms=recompute_max_n_atoms)
         assert split_dict is not None, "Failed to get split indices from MoleculeFactory"
+
+        selection_dir = self.datacfg.get(
+            "selection_manifest_dir", None
+        )
+
+        if selection_dir:
+            from src.data.external_split_loader import (
+                load_external_split_indices,
+            )
+
+            split_dict.update(
+                load_external_split_indices(
+                    selection_dir,
+                    self.datadir / "molecules.h5",
+                )
+            )
+
         self.train_indices = split_dict['train']
         self.val_indices = split_dict['val']
         self.test_indices = split_dict['test']
