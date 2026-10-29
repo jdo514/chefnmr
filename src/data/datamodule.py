@@ -1,3 +1,4 @@
+import os
 import pathlib
 import copy
 import multiprocessing
@@ -40,7 +41,11 @@ class NMRDataset(Dataset):
             input_generator_addn_args: Dictionary of additional arguments for the input generator.
             use_all_conformers: If True, returns all conformers (useful for AMR calculation during validation/testing).
         """
-        self.data_manager = MoleculeFactory(datadir=datadir, mode='r')
+        # The dataset is constructed in the parent process. Do not open HDF5
+        # until __getitem__ runs inside the actual DataLoader worker.
+        self._data_dir_for_worker = pathlib.Path(datadir)
+        self.data_manager = None
+        self._data_manager_pid = None
         self.data_indices = data_indices
         if spectral_variant_mode not in MODES:
             raise ValueError(f"Unknown spectral_variant_mode: {spectral_variant_mode}")
@@ -87,17 +92,21 @@ class NMRDataset(Dataset):
             self.spectral_variant_mode, epoch=self._spectral_epoch.value,
             seed=self.spectral_variant_seed,
         )
+        # Every worker gets its own HDF5 handle; never reuse a handle after fork.
+        current_pid = os.getpid()
+        if self.data_manager is None or self._data_manager_pid != current_pid:
+            self.data_manager = MoleculeFactory(
+                datadir=self._data_dir_for_worker, mode='r'
+            )
+            self._data_manager_pid = current_pid
+
         mol_dict = self.data_manager.get_molecule_data_by_idx(
             mol_idx=self.data_indices[position],
             include_skeleton_smiles=False,
             include_spectra=True,
             include_atom_features=True,
+            spectral_variant_idx=variant,  # None keeps legacy full-read behavior.
         )
-        
-        if variant is not None:
-            mol_dict = select_paired_spectra(
-                mol_dict, variant, self.spectral_variant_count
-            )
         return self.input_generator.forward(mol_dict)
         
 class NMRDataModule(pl.LightningDataModule):
@@ -126,7 +135,9 @@ class NMRDataModule(pl.LightningDataModule):
         self.datadir = pathlib.Path(self.datacfg.datadir)
         
         # Initialize MoleculeFactory for data access
-        self.mol_factory = MoleculeFactory(datadir=self.datadir, mode='r')
+        # Only open a file temporarily inside prepare_data; this avoids
+        # passing an open parent HDF5 handle to forked DataLoader workers.
+        self.mol_factory = None
         
         self.train_indices = None
         self.val_indices = None
@@ -158,7 +169,8 @@ class NMRDataModule(pl.LightningDataModule):
         # Load split indices, sigma_data, and max_n_atoms from MoleculeFactory
         recompute_sigma_data = self.sigma_data is None
         recompute_max_n_atoms = self.max_n_atoms is None
-        split_dict = self.mol_factory.get_split(suffix=self.datacfg.split_indices_suffix,
+        with MoleculeFactory(datadir=self.datadir, mode='r') as factory:
+            split_dict = factory.get_split(suffix=self.datacfg.split_indices_suffix,
                                                 recompute_sigma_data=recompute_sigma_data, 
                                                  recompute_max_n_atoms=recompute_max_n_atoms)
         assert split_dict is not None, "Failed to get split indices from MoleculeFactory"
@@ -295,6 +307,7 @@ class NMRDataModule(pl.LightningDataModule):
             self._train_set,
             batch_size=self.datacfg.batch_size,
             num_workers=self.datacfg.num_workers,
+            persistent_workers=(int(self.datacfg.num_workers) > 0),
             pin_memory=self.datacfg.pin_memory,
             shuffle=self.datacfg.shuffle
         )
@@ -304,6 +317,7 @@ class NMRDataModule(pl.LightningDataModule):
             self._val_set,
             batch_size=self.datacfg.batch_size,
             num_workers=self.datacfg.num_workers,
+            persistent_workers=(int(self.datacfg.num_workers) > 0),
             pin_memory=self.datacfg.pin_memory,
             shuffle=False
         )
@@ -314,6 +328,7 @@ class NMRDataModule(pl.LightningDataModule):
             self._test_subset,
             batch_size=self.datacfg.test_args.test_batch_size,
             num_workers=self.datacfg.num_workers,
+            persistent_workers=(int(self.datacfg.num_workers) > 0),
             pin_memory=self.datacfg.pin_memory,
             shuffle=False
         )

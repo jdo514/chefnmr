@@ -5,7 +5,7 @@ Converted variant order: reference, aug_000, ..., aug_009.
 import numpy as np
 from lightning.pytorch.callbacks import Callback
 
-MODES = {"legacy_random", "reference", "paired_cyclic", "paired_expanded"}
+MODES = {"legacy_random", "reference", "paired_cyclic", "paired_random", "paired_expanded"}
 
 
 def resolve_item(index, n_molecules, n_variants, mode, epoch=0, seed=42):
@@ -22,6 +22,8 @@ def resolve_item(index, n_molecules, n_variants, mode, epoch=0, seed=42):
         return divmod(index, n_variants)
     if mode == "paired_cyclic":
         return index, (index + int(seed) + int(epoch)) % n_variants
+    if mode == "paired_random":
+        return index, int(np.random.randint(0, n_variants))
     return index, 0 if mode == "reference" else None
 
 

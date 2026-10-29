@@ -152,11 +152,14 @@ class MoleculeFactory:
         return mol_idx in self.file
     
     def get_molecule_data_by_idx(self, mol_idx: Union[int, str], include_skeleton_smiles: bool = True,
-                          include_spectra: bool = True, include_atom_features: bool = True) -> Dict[str, Any]:
+                          include_spectra: bool = True, include_atom_features: bool = True,
+                          spectral_variant_idx: Optional[int] = None) -> Dict[str, Any]:
         """Get molecule data by index."""
         mol_idx = self.format_mol_idx(self.int_mol_idx(mol_idx))
-        mol_data = self.storage.load_molecule_data(mol_idx, include_skeleton_smiles,
-                                                   include_spectra, include_atom_features)
+        mol_data = self.storage.load_molecule_data(
+            mol_idx, include_skeleton_smiles, include_spectra, include_atom_features,
+            spectral_variant_idx=spectral_variant_idx,
+        )
         return self.processor.standardize_data_types(mol_data)
     
     def get_molecule_data_by_smiles(self, smiles: str, include_skeleton_smiles: bool = True,

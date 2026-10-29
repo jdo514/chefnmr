@@ -210,7 +210,8 @@ class HDF5StorageManager:
                     spectra_group.create_dataset(key, data=value)
 
     def load_molecule_data(self, mol_idx: str, include_skeleton_smiles: bool = True,
-                          include_spectra: bool = True, include_atom_features: bool = True) -> Dict[str, Any]:
+                          include_spectra: bool = True, include_atom_features: bool = True,
+                          spectral_variant_idx: Optional[int] = None) -> Dict[str, Any]:
         """Load molecule data from HDF5."""
         if mol_idx not in self.file:
             return {}
@@ -226,12 +227,33 @@ class HDF5StorageManager:
         if include_spectra and 'spectra' in mol_group:
             result['spectra'] = {}
             spectra_group = mol_group['spectra']
-            for key in ['h_10k', 'h_28k', 'h_100', 'h_solvent', 'c_80', 'c_10k', 'c_solvent']:
-                if key in spectra_group:
-                    if key.endswith('solvent'):
-                        result['spectra'][key] = [self._read_str(s) for s in spectra_group[key][()]]
-                    else:
-                        result['spectra'][key] = spectra_group[key][()]
+            if spectral_variant_idx is None:
+                # Backward-compatible path: preserve existing complete reads.
+                for key in ['h_10k', 'h_28k', 'h_100', 'h_solvent', 'c_80', 'c_10k', 'c_solvent']:
+                    if key in spectra_group:
+                        if key.endswith('solvent'):
+                            result['spectra'][key] = [self._read_str(s) for s in spectra_group[key][()]]
+                        else:
+                            result['spectra'][key] = spectra_group[key][()]
+            else:
+                # Select exactly one paired H1/C13 variant before decompression.
+                # Keep the leading singleton dimension expected by NMRInputGenerator.
+                variant = int(spectral_variant_idx)
+                if variant != spectral_variant_idx or variant < 0:
+                    raise ValueError(f"Invalid spectral_variant_idx: {spectral_variant_idx}")
+                for key, width in (('h_10k', 10000), ('c_80', 80)):
+                    if key not in spectra_group:
+                        raise KeyError(f"{mol_idx}: missing required {key}")
+                    dataset = spectra_group[key]
+                    if dataset.ndim != 2 or dataset.shape[1] != width:
+                        raise ValueError(
+                            f"{mol_idx}/{key}: unexpected HDF5 shape {dataset.shape}"
+                        )
+                    if variant >= dataset.shape[0]:
+                        raise IndexError(
+                            f"{mol_idx}/{key}: variant {variant} outside {dataset.shape}"
+                        )
+                    result['spectra'][key] = dataset[variant:variant + 1, :]
         
         if include_atom_features and 'atom_features' in mol_group:
             features_group = mol_group['atom_features']
