@@ -1,0 +1,16 @@
+universe = vanilla
+executable = /bin/bash
+arguments = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/conditional_full_training/run_full_training.sh augmented $(Cluster).$(Process)
+initialdir = /home/nmrbox/0015/jdonner/spec2mol-chefnmr
+request_cpus = 2
+request_memory = 8GB
+request_disk = 3GB
+request_gpus = 1
+gpus_minimum_memory = 38000
++Production = True
+should_transfer_files = NO
+transfer_executable = FALSE
+log = logs/full_augmented.$(Cluster).$(Process).log
+output = logs/full_augmented.$(Cluster).$(Process).out
+error = logs/full_augmented.$(Cluster).$(Process).err
+queue 1

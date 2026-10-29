@@ -1,0 +1,11 @@
+# Submit from ~/spec2mol-chefnmr with condor_submit_dag launch/conditional_full_training/full_after_200.dag
+# The gate examines *external* 200-step job 2222727.0. No duplicate benchmark submitted.
+JOB CHECK200 pipeline/scripts/nmrbox/noop.sub NOOP
+SCRIPT DEFER 75 120 PRE CHECK200 /home/nmrbox/0015/jdonner/spec2mol-chefnmr/venv/bin/python launch/conditional_full_training/gate_200.py 2222727.0
+JOB SMOKE launch/conditional_full_training/smoke.sub
+JOB REFERENCE launch/conditional_full_training/reference.sub
+JOB AUGMENTED launch/conditional_full_training/augmented.sub
+PARENT CHECK200 CHILD SMOKE
+PARENT SMOKE CHILD REFERENCE
+PARENT REFERENCE CHILD AUGMENTED
+NODE_STATUS_FILE /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/conditional_full_training/full_after_200.status 60
