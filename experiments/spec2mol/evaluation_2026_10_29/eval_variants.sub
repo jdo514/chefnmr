@@ -1,0 +1,38 @@
+# After heldout passes: matched robustness experiment across all 11 existing spectral variants
+# Identical 100 validation molecules chosen in each job by subset seed 4201.
+universe = vanilla
+initialdir = /home/nmrbox/0015/jdonner/spec2mol-chefnmr
+executable = /bin/bash
+arguments = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/chefnmr_eval/run_eval.sh $(model) frozen-val $(variant) 100 1 50 $(Cluster).$(Process)
+request_cpus = 4
+request_memory = 12GB
+request_disk = 6GB
+request_gpus = 1
+gpus_minimum_memory = 38000
++Production = True
+should_transfer_files = NO
+output = logs/eval_variants.$(Cluster).$(Process).out
+error = logs/eval_variants.$(Cluster).$(Process).err
+log = logs/eval_variants.$(Cluster).$(Process).log
+queue model,variant from (
+ reference,1
+ reference,2
+ reference,3
+ reference,4
+ reference,5
+ reference,6
+ reference,7
+ reference,8
+ reference,9
+ reference,10
+ augmented,1
+ augmented,2
+ augmented,3
+ augmented,4
+ augmented,5
+ augmented,6
+ augmented,7
+ augmented,8
+ augmented,9
+ augmented,10
+)

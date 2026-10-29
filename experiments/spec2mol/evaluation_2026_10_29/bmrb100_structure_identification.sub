@@ -1,0 +1,16 @@
+# Substitute /home/nmrbox/0015/jdonner/spec2mol-chefnmr with the absolute path on indium.
+universe = vanilla
+executable = /bin/bash
+initialdir = /home/nmrbox/0015/jdonner/spec2mol-chefnmr
+arguments = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/chefnmr_eval/run_bmrb100_gpu_job.sh $(Cluster).$(Process)
+getenv = True
+should_transfer_files = NO
+request_gpus = 1
+request_cpus = 6
+request_memory = 24GB
+request_disk = 8GB
+output = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/logs/bmrb100_graph_$(Cluster)_$(Process).out
+error  = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/logs/bmrb100_graph_$(Cluster)_$(Process).err
+log    = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/logs/bmrb100_graph_$(Cluster)_$(Process).log
+# Site-specific walltime settings can be added after checking NMRbox policy.
+queue 1

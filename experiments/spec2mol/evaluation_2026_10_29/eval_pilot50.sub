@@ -1,0 +1,19 @@
+# Deploy these files to ~/spec2mol-chefnmr/launch/chefnmr_eval
+universe = vanilla
+initialdir = /home/nmrbox/0015/jdonner/spec2mol-chefnmr
+executable = /bin/bash
+arguments = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/chefnmr_eval/run_eval.sh $(model) frozen-val 0 2 1 50 $(Cluster).$(Process)
+request_cpus = 4
+request_memory = 12GB
+request_disk = 6GB
+request_gpus = 1
+gpus_minimum_memory = 38000
++Production = True
+should_transfer_files = NO
+output = logs/eval_pilot50.$(Cluster).$(Process).out
+error = logs/eval_pilot50.$(Cluster).$(Process).err
+log = logs/eval_pilot50.$(Cluster).$(Process).log
+queue model from (
+  reference
+  augmented
+)

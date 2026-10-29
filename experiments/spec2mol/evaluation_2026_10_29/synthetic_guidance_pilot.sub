@@ -1,0 +1,15 @@
+# Replace /home/nmrbox/0015/jdonner/spec2mol-chefnmr with the absolute indium project directory.
+universe = vanilla
+executable = /bin/bash
+initialdir = /home/nmrbox/0015/jdonner/spec2mol-chefnmr
+arguments = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/chefnmr_eval/run_synthetic_guidance_gpu_job.sh $(Cluster).$(Process)
+getenv = True
+should_transfer_files = NO
+request_gpus = 1
+request_cpus = 6
+request_memory = 24GB
+request_disk = 8GB
+output = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/logs/synthetic_guidance_$(Cluster)_$(Process).out
+error = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/logs/synthetic_guidance_$(Cluster)_$(Process).err
+log = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/logs/synthetic_guidance_$(Cluster)_$(Process).log
+queue 1

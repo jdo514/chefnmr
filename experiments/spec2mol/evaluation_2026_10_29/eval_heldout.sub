@@ -1,0 +1,19 @@
+# After SMOKE passes for both models: 100 frozen validation molecules, original/reference spectra
+universe = vanilla
+initialdir = /home/nmrbox/0015/jdonner/spec2mol-chefnmr
+executable = /bin/bash
+arguments = /home/nmrbox/0015/jdonner/spec2mol-chefnmr/launch/chefnmr_eval/run_eval.sh $(model) frozen-val 0 100 1 50 $(Cluster).$(Process)
+request_cpus = 4
+request_memory = 12GB
+request_disk = 6GB
+request_gpus = 1
+gpus_minimum_memory = 38000
++Production = True
+should_transfer_files = NO
+output = logs/eval_heldout.$(Cluster).$(Process).out
+error = logs/eval_heldout.$(Cluster).$(Process).err
+log = logs/eval_heldout.$(Cluster).$(Process).log
+queue model from (
+  reference
+  augmented
+)
