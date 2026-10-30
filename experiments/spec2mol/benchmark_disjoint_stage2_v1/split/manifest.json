@@ -1,0 +1,49 @@
+{
+  "selection_name": "benchmark_molecule_disjoint_v1",
+  "definition": "benchmark-molecule-disjoint / scaffold-overlap-allowed",
+  "train_molecules": 127481,
+  "validation_molecules": 14165,
+  "test_molecules": 0,
+  "total_molecules": 141646,
+  "eligible_master_ids": 142277,
+  "benchmarks": {
+    "BMRB100": {
+      "rows": 100,
+      "unique_identities": 100,
+      "source_sha256": "4098c9b4a89554673c2db196b71e42a960aaf2d0d865f0ed0cac3ad171f4874c"
+    },
+    "SpecTeach": {
+      "rows": 238,
+      "unique_identities": 238,
+      "source_sha256": "a2547238d5cb8d80aaa6a93c5b9263b5e10cc379b8dbd4114d0cb085ce547c48"
+    }
+  },
+  "combined_benchmark_identities": 330,
+  "excluded_reasons": {
+    "external_benchmark_identity": 268,
+    "zero_or_invalid_conformers": 363
+  },
+  "unique_train_structures": 127481,
+  "unique_validation_structures": 14165,
+  "previous_training_molecules": 95202,
+  "previous_training_ids_sha256": "8fb811e3084c9f22a3aa929b284f459e840f708087731229de68ff19deb7dbb9",
+  "previously_trained_validation_overlap": 0,
+  "train_fraction_groups": 0.9,
+  "seed": 42,
+  "master_sha256": "d71614feb17fd0e5d9e8c4f856a7c01e7141e063a0bb37cff99562c78af420e9",
+  "rdkit_version": "2024.03.6",
+  "identity_rule": "RDKit canonical isomericSmiles=False after Chem.RemoveStereochemistry; no scaffold exclusion",
+  "caution": "Protonation/tautomer/salt equivalents not exhaustively resolved by canonical SMILES. Review benchmark overlaps before declaring full chemical identity disjointness.",
+  "split_file_sha256": {
+    "train": "72ac2a01a0ddf78976e4605d0d4b919ef8716d37fbed67dfec2fe3dd4c1750f3",
+    "val": "cb03a3506e179c46662787ec1d1caaad1826026244a27b4bc183e39781fb405b",
+    "test": "040ce28f7590a34af85fbdb8115c90c9a0529a73b047533889c859c2f2c6e627"
+  },
+  "audit": {
+    "benchmark_exact_structure_overlap_train": 0,
+    "benchmark_exact_structure_overlap_val": 0,
+    "train_val_structure_identity_overlap": 0,
+    "previously_trained_validation_overlap": 0
+  },
+  "notes": "Primary benchmark exclusion uses all 100 BMRB100 + 238 SpecTeach source reference molecules; not pilot subsets. HDF5 unchanged."
+}

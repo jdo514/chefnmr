@@ -1,0 +1,16 @@
+{
+  "audit": {
+    "benchmark_exact_structure_overlap_train": 0,
+    "benchmark_exact_structure_overlap_val": 0,
+    "train_val_structure_identity_overlap": 0,
+    "previously_trained_validation_overlap": 0
+  },
+  "excluded_reasons": {
+    "external_benchmark_identity": 268,
+    "zero_or_invalid_conformers": 363
+  },
+  "train": 127481,
+  "val": 14165,
+  "master": 142277,
+  "benchmark_rows": 338
+}
