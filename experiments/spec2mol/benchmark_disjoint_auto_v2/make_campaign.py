@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate (but DO NOT submit) an automatic multi-segment stage-2 HTCondor DAG.
 
-Each segment queues independent 1- and 2-GPU candidates. First to acquire
-shared per-segment claim trains. Winner's POST cancels sibling, and DAGMan
+Each segment queues independent 1- and 2-GPU candidates. Two-GPU candidate claims immediately; one-GPU candidate waits
+60 seconds before competing for the shared per-segment claim. Winner's POST cancels sibling, and DAGMan
 queues both candidates for the next segment only after this segment succeeds.
 """
 import argparse
@@ -84,7 +84,8 @@ def main():
                 launcher_script_sha256=sha(work/'run_disjoint.sh'),
                 control_script_sha256=sha(work/'control.py'),
                 train_molecules=m['train_molecules'], validation_molecules=m['validation_molecules'],
-                requested_global_batch=128, first_wins=True,
+                requested_global_batch=128, two_gpu_claim_priority_seconds=60,
+                winner_selection="2gpu_first_if_both_allocated_within_60s_else_first_claim",
                 protocol='stage2_original_augmented_ckpt_full_optimizer_continuation_1or2GPU_43h_segments')
     (root/'campaign.json').write_text(json.dumps(meta,indent=2)+'\n')
     dag = []
@@ -128,6 +129,7 @@ def main():
     (root/'campaign.dag').write_text('\n'.join(dag))
     print('AUTOMATIC DAG GENERATED (NOT SUBMITTED):', root/'campaign.dag')
     print('SEGMENTS',a.segments,'GPUS candidates 1 and 2, global batch initial 128')
+    print('TWO-GPU CLAIM PREFERENCE: 1-GPU waits 60 seconds before claiming')
     print('CHEFNMR COMMIT', current)
     print('GPU SEGMENT HOURS',a.hours)
     print('SPLIT train',m['train_molecules'],'val',m['validation_molecules'])

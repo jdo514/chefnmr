@@ -16,8 +16,16 @@ if h!=meta['launcher_script_sha256']:
 PIN
 FOLDER="$(printf '%s/segment_%02d' "$ROOT" "$SEGMENT")"
 mkdir -p "$FOLDER"
-# Both 1- and 2-GPU jobs can queue, but exactly one may train.
-# The flock lock is held for the entire lifetime of the selected run.
+# Give a simultaneously allocated 2-GPU candidate a 60-second head start.
+# IMPORTANT: the one-GPU allocation remains occupied during this grace period;
+# this is claim priority, NOT an HTCondor matchmaking priority guarantee.
+# Wait BEFORE acquiring either the flock or persistent claim.  A 2-GPU
+# candidate entering within this window can claim immediately and win.
+if [[ "$EXPECTED_GPUS" -eq 1 ]]; then
+  echo 'ONE_GPU_PRIORITY_WINDOW: waiting 60 seconds for a 2-GPU candidate'
+  sleep 60
+fi
+# Exactly one candidate may train; hold the lock for the whole segment.
 exec 9>"$FOLDER/.winner.lock"
 if ! flock -n 9; then
   echo 'Another GPU candidate already training this campaign; exiting without training.'

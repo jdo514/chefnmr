@@ -6,7 +6,7 @@ Resume original `full_augmented_2222972.0/.../last.ckpt` with full Lightning sta
 Master: 142,277; external-identity-disjoint selection: 127,481 train / 14,165 validation; no scaffold filter. Do **not** change `molecules.h5` or frozen selection.
 
 - Each segment independently queues **one 1-GPU candidate** and **one 2-GPU candidate**.
-- First allocated candidate to take `segment_XX/.winner_claim` trains. Loser exits.
+- The **2-GPU candidate claims immediately**; a **1-GPU candidate waits 60 seconds after starting** before attempting the same per-segment claim. This favors 2 GPUs if both jobs start close together, but **does not guarantee 2-GPU priority in HTCondor scheduling**: an allocated 1-GPU job holds its GPU during the 60-second wait. The loser exits.
 - 1 GPU tries per-device batch **128, 64, 32**; 2 GPUs try **64, 32**. Initial global batch = **128** on either allocation. If OOM fallback occurs, global batch can drop to 64 (or 32 for 1 GPU).
 - On successful result, winner's DAGMan POST script cancels the losing candidate (narrowly matched by unique campaign key, segment and alternative GPU count). DAGMan queues the next pair **only when both prior nodes complete**.
 - Segment timer: **43 hours** by default; 48-hour NMRbox GPU limit. Stops at epoch boundary, so hard-limit preemption is still possible. Hourly Lightning checkpoint at `segment_XX/hourly/last.ckpt`; complete final checkpoint at `segment_XX/last.ckpt`, validated by SHA256 before subsequent segment.
@@ -89,3 +89,7 @@ After a segment passes, its POST script removes the waiting or redundant candida
 - The original training history includes 3,178 Stage 1 *validation* molecules reused in Stage 2 validation; they were not Stage 1 optimizer-training samples. Disclose this for model-selection independence.
 - The split's chemical identity rule is stereo-insensitive canonical SMILES, not exhaustive standardization of tautomer/salt/protonation equivalents.
 - The first real 2-GPU checkpoint restoration and NMRbox POST `condor_rm` operations are **not yet live-tested**. Inspect DAGMan logs after the first completed segment. Do not assume tested across cluster until observed.
+
+## v2.1 — 60-second two-GPU preference
+
+The only runtime behavior change is in `run_disjoint.sh`: the 1-GPU candidate waits 60 seconds **before** opening the winner lock or creating the persistent claim; the 2-GPU candidate does not wait. When both jobs start within 60 seconds and the two-GPU job reaches the claim in time, the two-GPU job wins. If 1 GPU is the only available allocation, it trains after 60 seconds. The losing candidate exits without touching checkpoint state. The campaign metadata records `two_gpu_claim_priority_seconds=60`. All code must be committed and the campaign generated after patching; do not replace a launcher already checksum-pinned by a submitted campaign.

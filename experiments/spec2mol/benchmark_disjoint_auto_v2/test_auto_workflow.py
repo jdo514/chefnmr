@@ -132,10 +132,19 @@ def test_generator():
         assert 'request_gpus = 1' in (out/'condor/S02_1.sub').read_text()
 
 
+
+def test_gpu_priority_patch():
+    launcher=(HERE/'run_disjoint.sh').read_text()
+    assert launcher.count('ONE_GPU_PRIORITY_WINDOW')==1
+    assert 'if [[ "$EXPECTED_GPUS" -eq 1 ]]; then' in launcher
+    assert launcher.index('sleep 60') < launcher.index('exec 9>"$FOLDER/.winner.lock"')
+    assert launcher.index('sleep 60') < launcher.index('mkdir "$FOLDER/.winner_claim"')
+
 if __name__=='__main__':
+    test_gpu_priority_patch()
     test_batch_patch()
     test_controller()
     test_generator()
-    print('AUTO-STAGE2 CPU TEST PASS: global batch patch, per-segment lock, '
+    print('AUTO-STAGE2 CPU TEST PASS: 60-second 2-GPU claim preference,  global batch patch, per-segment lock, '
           'one/two-GPU nodes, winner/loser handling, checkpoint audit, '
           'target PRE_SKIP, 3-segment DAG')
